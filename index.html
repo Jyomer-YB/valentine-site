@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Would you be my Valentine?</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      background: radial-gradient(circle at top, #2b1055, #12002b);
+      color: #fff; overflow: hidden;
+    }
+    .card {
+      width: min(520px, 92vw);
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 18px;
+      padding: 28px 22px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    h1 { margin: 6px 0 10px; font-size: 28px; }
+    p { margin: 0 0 18px; opacity: .9; }
+    .stage {
+      position: relative;
+      height: 180px;
+      border-radius: 14px;
+      background: rgba(0,0,0,0.18);
+      border: 1px solid rgba(255,255,255,0.12);
+      overflow: hidden;
+    }
+    button {
+      border: 0; border-radius: 999px;
+      padding: 12px 18px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: transform .08s ease, opacity .2s ease;
+      user-select: none;
+    }
+    button:active { transform: scale(0.98); }
+    #yes {
+      background: linear-gradient(135deg, #ff5fa2, #ffb84d);
+      color: #1a0533;
+      font-weight: 700;
+      position: absolute;
+      left: 50%;
+      top: 55%;
+      transform: translate(-120%, -50%);
+      min-width: 120px;
+    }
+    #no {
+      background: rgba(255,255,255,0.16);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.28);
+      position: absolute;
+      left: 50%;
+      top: 55%;
+      transform: translate(20%, -50%);
+      min-width: 120px;
+    }
+    .msg { margin-top: 16px; min-height: 28px; font-size: 16px; }
+
+    #celebrate {
+      position: fixed; inset: 0;
+      display: none;
+      background: #fff;
+      z-index: 9999;
+    }
+    #celebrate.show { display: block; }
+    #canvas { width: 100%; height: 100%; display: block; }
+
+    .wipe {
+      position: fixed; inset: 0;
+      background: #fff;
+      z-index: 9998;
+      transform: translateY(100%);
+      animation: wipeUp .8s ease forwards;
+    }
+    @keyframes wipeUp { to { transform: translateY(0%); } }
+
+    .hint { font-size: 12px; opacity: .75; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <h1>Would you be my Valentine? 💘</h1>
+    <p>You really have a choice 😄</p>
+
+    <div class="stage" id="stage">
+      <button id="yes">Yes 💖</button>
+      <button id="no">No 🙈</button>
+    </div>
+
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div id="celebrate">
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <script>
+    const stage = document.getElementById('stage');
+    const yes = document.getElementById('yes');
+    const no = document.getElementById('no');
+    const msg = document.getElementById('msg');
+    const card = document.getElementById('card');
+
+    const celebrate = document.getElementById('celebrate');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    function rand(min, max){ return Math.random() * (max - min) + min; }
+
+    let dodges = 0;
+    stage.addEventListener('mousemove', (e) => {
+      const rNo = no.getBoundingClientRect();
+      const rSt = stage.getBoundingClientRect();
+      const mx = e.clientX, my = e.clientY;
+      const cx = rNo.left + rNo.width / 2;
+      const cy = rNo.top + rNo.height / 2;
+      const dist = Math.hypot(mx - cx, my - cy);
+
+      if (dist < 90) {
+        dodges++;
+        const nx = Math.min(Math.max(rand(10, rSt.width - rNo.width - 10), 10), rSt.width - rNo.width - 10);
+        const ny = Math.min(Math.max(rand(20, rSt.height - rNo.height - 20), 20), rSt.height - rNo.height - 20);
+        no.style.left = nx + 'px';
+        no.style.top  = ny + 'px';
+        no.style.transform = 'none';
+        if (dodges === 1) msg.textContent = "Hey 😅";
+        if (dodges === 6) msg.textContent = "You can click No if you want 😄";
+      }
+    });
+
+    function resizeCanvas(){
+      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      canvas.style.width = window.innerWidth + "px";
+      canvas.style.height = window.innerHeight + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function heartPoint(t, scale){
+      const x = 16 * Math.pow(Math.sin(t), 3);
+      const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+      return { x: x * scale, y: -y * scale };
+    }
+
+    const heartsUp = [];
+    const sparks = [];
+
+    function spawnFloatingHeart(){
+      heartsUp.push({
+        x: rand(0, window.innerWidth),
+        y: window.innerHeight + rand(10, 120),
+        vy: rand(40, 120),
+        vx: rand(-20, 20),
+        size: rand(10, 26),
+        rot: rand(-Math.PI, Math.PI),
+        vr: rand(-1.2, 1.2),
+        alpha: rand(0.5, 0.9)
+      });
+    }
+
+    function spawnFirework(){
+      const x = rand(window.innerWidth * 0.15, window.innerWidth * 0.85);
+      const y = rand(window.innerHeight * 0.15, window.innerHeight * 0.55);
+      const n = Math.floor(rand(18, 34));
+      const palette = ["#ff5fa2","#ffb84d","#7dffb0","#5ac8ff","#b478ff","#ff8cdc"];
+      for(let i=0;i<n;i++){
+        const a = rand(0, Math.PI*2);
+        const sp = rand(80, 260);
+        sparks.push({
+          x, y,
+          vx: Math.cos(a) * sp,
+          vy: Math.sin(a) * sp,
+          life: rand(0.8, 1.4),
+          age: 0,
+          r: rand(1.5, 3.2),
+          col: palette[Math.floor(rand(0, palette.length))]
+        });
+      }
+    }
+
+    let startTime = 0;
+    let running = false;
+
+    function animate(ts){
+      if(!running) return;
+      const t = (ts - startTime) / 1000;
+
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2 - 30;
+      const scale = Math.min(window.innerWidth, window.innerHeight) * 0.018;
+
+      const prog = Math.min(1, t / 2.0);
+      const maxT = prog * Math.PI * 2;
+
+      ctx.lineWidth = 6;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#ff2d7a";
+      ctx.beginPath();
+      let first = true;
+      for(let tt = 0; tt <= maxT; tt += 0.03){
+        const p = heartPoint(tt, scale);
+        const x = cx + p.x;
+        const y = cy + p.y;
+        if(first){ ctx.moveTo(x,y); first=false; }
+        else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+
+      if(prog >= 1){
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = "#ff2d7a";
+        ctx.beginPath();
+        first = true;
+        for(let tt = 0; tt <= Math.PI*2; tt += 0.02){
+          const p = heartPoint(tt, scale);
+          const x = cx + p.x;
+          const y = cy + p.y;
+          if(first){ ctx.moveTo(x,y); first=false; }
+          else ctx.lineTo(x,y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      ctx.fillStyle = "#1a0533";
+      ctx.textAlign = "center";
+      ctx.font = "700 42px system-ui";
+      ctx.fillText("Yaaay! 💖", cx, cy + 230);
+      ctx.font = "500 20px system-ui";
+      ctx.fillText("Happy Valentine’s Day ✨", cx, cy + 262);
+
+      if(Math.random() < 0.25) spawnFloatingHeart();
+      for(let i = heartsUp.length - 1; i >= 0; i--){
+        const h = heartsUp[i];
+        h.x += h.vx * (1/60);
+        h.y -= h.vy * (1/60);
+        h.rot += h.vr * (1/60);
+        h.alpha -= 0.003;
+
+        ctx.save();
+        ctx.translate(h.x, h.y);
+        ctx.rotate(h.rot);
+        ctx.globalAlpha = Math.max(0, h.alpha);
+        ctx.fillStyle = "#ff5fa2";
+        ctx.beginPath();
+        ctx.moveTo(0, -h.size*0.3);
+        ctx.bezierCurveTo(h.size*0.6, -h.size*0.9, h.size*1.4, -h.size*0.1, 0, h.size*0.9);
+        ctx.bezierCurveTo(-h.size*1.4, -h.size*0.1, -h.size*0.6, -h.size*0.9, 0, -h.size*0.3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        ctx.globalAlpha = 1;
+
+        if(h.y < -50 || h.alpha <= 0) heartsUp.splice(i, 1);
+      }
+
+      if(t > 0.6 && Math.random() < 0.06) spawnFirework();
+      for(let i = sparks.length - 1; i >= 0; i--){
+        const s = sparks[i];
+        const dt = 1/60;
+        s.age += dt;
+        s.vx *= 0.985;
+        s.vy *= 0.985;
+        s.vy += 60 * dt;
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+
+        const lifeLeft = Math.max(0, 1 - s.age / s.life);
+        ctx.globalAlpha = lifeLeft;
+        ctx.fillStyle = s.col;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        if(s.age >= s.life) sparks.splice(i, 1);
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    function startCelebration(){
+      const wipe = document.createElement('div');
+      wipe.className = 'wipe';
+      document.body.appendChild(wipe);
+
+      setTimeout(() => {
+        card.style.display = "none";
+        celebrate.classList.add('show');
+        resizeCanvas();
+        running = true;
+        startTime = performance.now();
+        requestAnimationFrame(animate);
+        wipe.remove();
+      }, 800);
+    }
+
+    yes.addEventListener('click', () => {
+      yes.disabled = true;
+      no.disabled = true;
+      startCelebration();
+    });
+
+    no.addEventListener('click', () => {
+      msg.textContent = "That’s okay 😊 Have a wonderful day!";
+      yes.disabled = true;
+      no.disabled = true;
+    });
+  </script>
+</body>
+</html>
