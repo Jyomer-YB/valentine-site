@@ -87,8 +87,8 @@
 </head>
 <body>
   <div class="card" id="card">
-    <h1>Would you be my Valentine? 💘</h1>
-    <p>You really have a choice 😄</p>
+    <h1 id="title">Would you be my Valentine? 💘</h1>
+    <p id="subtitle">You really have a choice 😄</p>
 
     <div class="stage" id="stage">
       <button id="yes">Yes 💖</button>
@@ -96,6 +96,7 @@
     </div>
 
     <div class="msg" id="msg"></div>
+    <div class="hint" id="hint"></div>
   </div>
 
   <div id="celebrate">
@@ -109,12 +110,30 @@
     const msg = document.getElementById('msg');
     const card = document.getElementById('card');
 
+    const titleEl = document.getElementById('title');
+    const subtitleEl = document.getElementById('subtitle');
+    const hintEl = document.getElementById('hint');
+
     const celebrate = document.getElementById('celebrate');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
     function rand(min, max){ return Math.random() * (max - min) + min; }
 
+    // ---- Name from URL: ?name=YourName ----
+    const params = new URLSearchParams(location.search);
+    let name = (params.get("name") || "").trim();
+
+    // small sanitize + length limit
+    name = name.replace(/[<>]/g, "").slice(0, 24);
+
+    if (name) {
+      titleEl.textContent = `Would you be my Valentine, ${name}? 💘`;
+    } else {
+      hintEl.textContent = `Tip: add a name → ?name=YourName`;
+    }
+
+    // ---- Fun dodge (still clickable) ----
     let dodges = 0;
     stage.addEventListener('mousemove', (e) => {
       const rNo = no.getBoundingClientRect();
@@ -136,6 +155,35 @@
       }
     });
 
+    // ---- WebAudio: tiny cute "chime" on Yes ----
+    let audioCtx = null;
+    function playYesChime() {
+      // Must be called from a user gesture (click) => OK
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+      const now = audioCtx.currentTime;
+
+      // 3 quick notes (a simple arpeggio)
+      const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
+      notes.forEach((freq, i) => {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+
+        o.type = "sine";
+        o.frequency.setValueAtTime(freq, now + i * 0.08);
+
+        // envelope
+        g.gain.setValueAtTime(0.0001, now + i * 0.08);
+        g.gain.exponentialRampToValueAtTime(0.18, now + i * 0.08 + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.08 + 0.22);
+
+        o.connect(g).connect(audioCtx.destination);
+        o.start(now + i * 0.08);
+        o.stop(now + i * 0.08 + 0.24);
+      });
+    }
+
+    // ---------- Celebration animation ----------
     function resizeCanvas(){
       const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
       canvas.width = Math.floor(window.innerWidth * dpr);
@@ -242,7 +290,8 @@
       ctx.font = "700 42px system-ui";
       ctx.fillText("Yaaay! 💖", cx, cy + 230);
       ctx.font = "500 20px system-ui";
-      ctx.fillText("Happy Valentine’s Day ✨", cx, cy + 262);
+      const line2 = name ? `Happy Valentine’s Day, ${name} ✨` : "Happy Valentine’s Day ✨";
+      ctx.fillText(line2, cx, cy + 262);
 
       if(Math.random() < 0.25) spawnFloatingHeart();
       for(let i = heartsUp.length - 1; i >= 0; i--){
@@ -311,6 +360,9 @@
     }
 
     yes.addEventListener('click', () => {
+      // sound first (needs user gesture)
+      playYesChime();
+
       yes.disabled = true;
       no.disabled = true;
       startCelebration();
